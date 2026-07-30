@@ -70,8 +70,14 @@ class CommandR:
                 self.queues = [queue.Queue() for _ in range(batch_size)]
                 self.token_caches = [[] for _ in range(batch_size)]
                 self.print_lens = [0 for _ in range(batch_size)]
+                # generate()'s first put() call carries the full prompt, not a
+                # generated token; every call after that carries one new token per row.
+                self.next_call_is_prompt = True
 
             def put(self, value):
+                if self.next_call_is_prompt:
+                    self.next_call_is_prompt = False
+                    return
                 for i, new_ids in enumerate(value.tolist()):
                     self.token_caches[i].extend(
                         new_ids if isinstance(new_ids, list) else [new_ids]
@@ -153,8 +159,7 @@ class CommandR:
             if item is None:
                 return
 
-    @modal.method()
-    def generate(self, messages: list[dict], max_new_tokens: int = 512, temperature: float = 0.3):
+    def _generate_stream(self, messages: list[dict], max_new_tokens: int = 512, temperature: float = 0.3):
         req = GenerationRequest(messages=messages, max_new_tokens=max_new_tokens, temperature=temperature)
         self.pending.put(req)
         while True:
@@ -162,6 +167,14 @@ class CommandR:
             if item is None:
                 break
             yield item
+
+    @modal.method()
+    def generate(self, messages: list[dict], max_new_tokens: int = 512, temperature: float = 0.3):
+        yield from self._generate_stream(messages, max_new_tokens, temperature)
+
+    @modal.method()
+    def generate_sync(self, messages: list[dict], max_new_tokens: int = 512, temperature: float = 0.3) -> str:
+        return "".join(self._generate_stream(messages, max_new_tokens, temperature))
 
 
 @app.local_entrypoint()
