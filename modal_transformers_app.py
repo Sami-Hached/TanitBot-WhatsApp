@@ -32,6 +32,7 @@ hf_cache_volume = modal.Volume.from_name("huggingface-command-r", create_if_miss
     volumes={"/root/.cache/huggingface": hf_cache_volume},
     scaledown_window=10 * 60,
     timeout=30 * 60,
+    max_containers=1,
 )
 class CommandR:
     @modal.enter()
