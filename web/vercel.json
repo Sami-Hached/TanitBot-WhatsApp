@@ -2,6 +2,9 @@
   "functions": {
     "api/whatsapp-webhook.ts": {
       "maxDuration": 300
+    },
+    "api/telegram-webhook.ts": {
+      "maxDuration": 300
     }
   }
 }

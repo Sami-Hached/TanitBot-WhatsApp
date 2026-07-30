@@ -14,3 +14,13 @@ export interface WhatsAppWebhookPayload {
     changes?: Array<{ value?: WhatsAppWebhookValue }>;
   }>;
 }
+
+export interface TelegramMessage {
+  chat: { id: number };
+  text?: string;
+}
+
+export interface TelegramUpdate {
+  update_id: number;
+  message?: TelegramMessage;
+}

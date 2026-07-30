@@ -13,3 +13,12 @@ export function verifyMetaSignature(
 
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+export function verifyTelegramSecret(header: string | null, expectedSecret: string): boolean {
+  if (!header) return false;
+
+  const a = Buffer.from(header);
+  const b = Buffer.from(expectedSecret);
+
+  return a.length === b.length && timingSafeEqual(a, b);
+}
