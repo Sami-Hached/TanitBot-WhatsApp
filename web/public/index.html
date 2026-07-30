@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TanitBot WhatsApp API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .status {
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+        .section p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .endpoint {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            color: #1f2937;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.9em;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #1f2937;
+        }
+    </style>
+    <!-- Vercel Web Analytics -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 TanitBot WhatsApp API</h1>
+        <p class="subtitle">AI-Powered WhatsApp Integration</p>
+        
+        <div class="status">✓ API Active</div>
+        
+        <div class="section">
+            <h2>About</h2>
+            <p>
+                This is a Vercel-deployed serverless API that receives WhatsApp Cloud API webhooks,
+                forwards messages to a Modal-hosted AI model, and sends intelligent responses back
+                via the WhatsApp Graph API.
+            </p>
+        </div>
+        
+        <div class="section">
+            <h2>API Endpoint</h2>
+            <p>WhatsApp webhook endpoint:</p>
+            <div class="endpoint">/api/whatsapp-webhook</div>
+        </div>
+        
+        <div class="section">
+            <h2>Features</h2>
+            <p>
+                • Real-time WhatsApp message processing<br>
+                • AI-powered responses using Modal infrastructure<br>
+                • Secure webhook verification<br>
+                • Scalable serverless architecture
+            </p>
+        </div>
+        
+        <div class="footer">
+            Powered by Vercel Functions & Modal
+        </div>
+    </div>
+</body>
+</html>
