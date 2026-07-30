@@ -17,17 +17,34 @@ MODEL_ID = "CohereLabs/c4ai-command-r-v01-4bit"
 MAX_BATCH_SIZE = 5
 MAX_BATCH_WAIT_SECONDS = 0.3
 
+EMBED_MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+RAG_FILES_DIR = "/root/RAG-files"
+RAG_INDEX_DIR = "/root/rag_index_cache"
+RAG_TOP_K = 4
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
+    # Heavy, stable deps in their own layer so RAG-dependency changes below don't
+    # invalidate this (slow) layer and force a full torch re-download every time.
+    .uv_pip_install(
         "torch",
         "transformers>=4.39.1",
         "bitsandbytes",
         "accelerate",
     )
+    .uv_pip_install(
+        "sentence-transformers",
+        "faiss-cpu",
+        "pypdf",
+        "cryptography",
+        "langchain-text-splitters",
+    )
+    .add_local_dir("RAG-files", remote_path=RAG_FILES_DIR)
+    .add_local_python_source("rag")
 )
 
 hf_cache_volume = modal.Volume.from_name("huggingface-command-r", create_if_missing=True)
+rag_index_volume = modal.Volume.from_name("rag-index-cache", create_if_missing=True)
 
 
 @dataclass
@@ -44,7 +61,10 @@ class GenerationRequest:
     cpu=1,
     memory=1024,
     secrets=[modal.Secret.from_name("huggingface-secret")],
-    volumes={"/root/.cache/huggingface": hf_cache_volume},
+    volumes={
+        "/root/.cache/huggingface": hf_cache_volume,
+        RAG_INDEX_DIR: rag_index_volume
+    },
     scaledown_window=10 * 60,
     timeout=30 * 60,
     max_containers=1,
@@ -53,8 +73,11 @@ class GenerationRequest:
 class CommandR:
     @modal.enter()
     def startup(self):
+        from sentence_transformers import SentenceTransformer
         from transformers import AutoTokenizer, AutoModelForCausalLM
         from transformers.generation.streamers import BaseStreamer
+
+        import rag
 
         self.tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
         if self.tokenizer.pad_token_id is None:
@@ -62,6 +85,14 @@ class CommandR:
         self.tokenizer.padding_side = "left"
 
         self.model = AutoModelForCausalLM.from_pretrained(MODEL_ID)
+
+        # Kept on CPU so the embedding model doesn't compete with the 35B model for GPU memory.
+        self.embed_model = SentenceTransformer(EMBED_MODEL_ID, device="cpu")
+        self.rag_index, self.rag_chunks, was_rebuilt = rag.build_or_load_index(
+            RAG_FILES_DIR, RAG_INDEX_DIR, self.embed_model
+        )
+        if was_rebuilt:
+            rag_index_volume.commit()
 
         class BatchStreamer(BaseStreamer):
             def __init__(self, tokenizer, batch_size, skip_special_tokens=True):
@@ -114,11 +145,20 @@ class CommandR:
             self._run_batch(batch)
 
     def _run_batch(self, batch):
-        prompts = [
-            self.tokenizer.apply_chat_template(
-                req.messages, tokenize=False, add_generation_prompt=True
+        import rag
+
+        rag_messages = [
+            rag.build_rag_messages(
+                req.messages,
+                rag.retrieve(
+                    req.messages[-1]["content"], self.rag_index, self.rag_chunks, self.embed_model, top_k=RAG_TOP_K
+                ),
             )
             for req in batch
+        ]
+        prompts = [
+            self.tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+            for msgs in rag_messages
         ]
         inputs = self.tokenizer(
             prompts, return_tensors="pt", padding=True, add_special_tokens=False

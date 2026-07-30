@@ -4,7 +4,7 @@ import { callModal } from "../lib/modal-client.js";
 import { sendWhatsAppMessage } from "../lib/whatsapp-client.js";
 import type { WhatsAppWebhookPayload } from "../lib/types.js";
 
-export const config = { maxDuration: 300 };
+export const config = { maxDuration: 800 };
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
