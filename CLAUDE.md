@@ -23,8 +23,10 @@ build-time check across either:
 1. **SDK path** — the Modal app/class names `"command-r-transformers"` / `"CommandR"` and the
    `generate_sync` signature `(messages, max_new_tokens, temperature)`. Renaming any of them
    requires an edit in `web/lib/modal-client.ts` (and `call_command_r.py`, `web/spike-modal-sdk.mjs`).
-2. **Streaming path** — the `stream_http` web endpoint URL (`MODAL_STREAM_URL`) and its SSE frame
-   format (`{"delta"}` / `{"done"}` / `{"error"}`), consumed by `web/lib/modal-stream-client.ts`.
+2. **Streaming path** — the `stream_http` method name and its SSE frame format
+   (`{"delta"}` / `{"done"}` / `{"error"}`), consumed by `web/lib/modal-stream-client.ts`. The
+   endpoint URL itself is *not* a coupling: it's resolved at runtime via `getWebUrl()` and cached
+   at module scope (`MODAL_STREAM_URL` overrides, for pinning a preview deployment).
 
 ## Request flow
 

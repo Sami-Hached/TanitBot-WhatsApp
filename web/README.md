@@ -24,9 +24,13 @@ commit a `.env` file.
 |---|---|
 | `MODAL_TOKEN_ID` | Modal workspace API token ID — auth for the Modal JS SDK call |
 | `MODAL_TOKEN_SECRET` | Modal workspace API token secret |
-| `MODAL_STREAM_URL` | URL of the deployed `CommandR.stream_http` web endpoint — printed by `modal deploy`, or `modal app list` |
-| `MODAL_PROXY_TOKEN_ID` | Modal **proxy auth** token ID — gates the streaming endpoint. Not the same as `MODAL_TOKEN_ID` (see below) |
-| `MODAL_PROXY_TOKEN_SECRET` | Modal proxy auth token secret |
+| `MODAL_PROXY_TOKEN_ID` | Modal **proxy auth** token ID (`wk-…`) — gates the streaming endpoint. Not interchangeable with `MODAL_TOKEN_ID` (see below) |
+| `MODAL_PROXY_TOKEN_SECRET` | Modal proxy auth token secret (`ws-…`) |
+
+The streaming endpoint's URL is **not** configured: it is resolved at runtime via the
+SDK (`…method("stream_http").getWebUrl()`) and cached per instance, so a redeployed
+endpoint can't drift out of sync with a stale env var. Set `MODAL_STREAM_URL` only to
+pin a specific endpoint, e.g. a preview deployment.
 | `WHATSAPP_VERIFY_TOKEN` | Arbitrary string you choose; must match the "Verify Token" set in Meta App Dashboard → WhatsApp → Configuration → Webhook |
 | `WHATSAPP_APP_SECRET` | Meta App Secret — verifies the `X-Hub-Signature-256` header on incoming webhooks |
 | `WHATSAPP_ACCESS_TOKEN` | Permanent WhatsApp Business system-user access token — bearer token for sending replies |
@@ -38,9 +42,11 @@ the dashboard, or export them in your shell before starting the dev server.
 
 ### Proxy auth tokens are not workspace tokens
 
-`MODAL_PROXY_TOKEN_ID`/`SECRET` are a **separate, narrower credential** from
-`MODAL_TOKEN_ID`/`SECRET`. Workspace tokens grant full API access to the whole Modal
-workspace; a proxy token only permits calling a web endpoint. Create one with:
+`MODAL_PROXY_TOKEN_ID`/`SECRET` are a **different kind of credential** from
+`MODAL_TOKEN_ID`/`SECRET`, not merely a second copy. Proxy tokens use `wk-`/`ws-`
+prefixes and API tokens use `ak-`/`as-`; Modal does not accept one where the other is
+expected. API tokens authenticate the SDK's calls to Modal's control plane, while proxy
+auth is checked at the HTTP ingress. Create one with:
 
 ```bash
 modal workspace proxy-tokens create

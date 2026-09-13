@@ -7,8 +7,14 @@
  *
  * This exists because the Modal JS SDK has no remote_gen equivalent — Function only
  * exposes remote()/spawn(), both single-value — so CommandR.generate is unreachable
- * over the SDK and we go over plain HTTP instead.
+ * over the SDK and we go over plain HTTP instead. The SDK is still used to look the
+ * endpoint URL up; only the token stream itself goes over raw HTTP.
  */
+import { ModalClient } from "modal";
+
+const APP_NAME = "command-r-transformers";
+const CLASS_NAME = "CommandR";
+const METHOD_NAME = "stream_http";
 
 /** The stream could not be used; the caller should fall back to the non-streaming path. */
 export class ModalStreamUnavailable extends Error {
@@ -24,13 +30,47 @@ function requireEnv(name: string): string {
   return value;
 }
 
+let streamUrlPromise: Promise<string> | null = null;
+
+/**
+ * Resolves the deployed endpoint URL through the SDK instead of an env var, so a
+ * redeployed endpoint cannot drift out of sync with configuration. Cached at module
+ * scope — this is a control-plane round-trip, not something to repeat per request.
+ *
+ * MODAL_STREAM_URL still overrides, which is how you point at a preview deployment.
+ */
+function getStreamUrl(): Promise<string> {
+  const override = process.env.MODAL_STREAM_URL;
+  if (override) return Promise.resolve(override);
+
+  if (!streamUrlPromise) {
+    streamUrlPromise = (async () => {
+      const cls = await new ModalClient().cls.fromName(APP_NAME, CLASS_NAME);
+      const instance = await cls.instance({});
+      const url = await instance.method(METHOD_NAME).getWebUrl();
+      if (!url) {
+        throw new ModalStreamUnavailable(
+          `${CLASS_NAME}.${METHOD_NAME} is not a web endpoint — is the deployed Modal app current?`
+        );
+      }
+      return url;
+    })().catch((err) => {
+      // Never cache a failure: one transient lookup error would otherwise disable
+      // streaming for the whole lifetime of this serverless instance.
+      streamUrlPromise = null;
+      throw err instanceof ModalStreamUnavailable
+        ? err
+        : new ModalStreamUnavailable(`could not resolve ${METHOD_NAME} URL: ${err}`);
+    });
+  }
+  return streamUrlPromise;
+}
+
 export async function* streamModal(
   userText: string,
   signal?: AbortSignal
 ): AsyncGenerator<string, void, void> {
-  const url = requireEnv("MODAL_STREAM_URL");
-
-  const res = await fetch(url, {
+  const res = await fetch(await getStreamUrl(), {
     method: "POST",
     signal,
     // Modal answers a request that outlives its 150s ingress timeout — i.e. a slow
