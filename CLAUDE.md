@@ -17,22 +17,33 @@ The repo holds two independently deployed halves that must be deployed separatel
 | GPU inference + RAG | repo root (`modal_transformers_app.py`, `rag.py`, `RAG-files/`) | Modal | `modal deploy modal_transformers_app.py` |
 | Webhook mediator | `web/` | Vercel (Root Directory set to `web`) | Vercel git deploy |
 
-They are coupled *only* by the Modal app/class names `"command-r-transformers"` / `"CommandR"` and
-the `generate_sync` method signature `(messages, max_new_tokens, temperature)`. Renaming the Modal
-app, class, or method requires an edit in `web/lib/modal-client.ts` (and `call_command_r.py`,
-`web/spike-modal-sdk.mjs`) or the webhooks break silently at runtime — there is no shared type or
-build-time check across the boundary.
+They are coupled by two separate, equally silent contracts — there is no shared type or
+build-time check across either:
+
+1. **SDK path** — the Modal app/class names `"command-r-transformers"` / `"CommandR"` and the
+   `generate_sync` signature `(messages, max_new_tokens, temperature)`. Renaming any of them
+   requires an edit in `web/lib/modal-client.ts` (and `call_command_r.py`, `web/spike-modal-sdk.mjs`).
+2. **Streaming path** — the `stream_http` web endpoint URL (`MODAL_STREAM_URL`) and its SSE frame
+   format (`{"delta"}` / `{"done"}` / `{"error"}`), consumed by `web/lib/modal-stream-client.ts`.
 
 ## Request flow
 
 1. Meta/Telegram POSTs a webhook to `web/api/{whatsapp,telegram}-webhook.ts`.
-2. The handler verifies the request signature (`lib/verify-signature.ts`: Meta HMAC-SHA256 over the
-   **raw body** — so WhatsApp must read `request.text()` before parsing; Telegram compares the
-   `X-Telegram-Bot-Api-Secret-Token` header).
-3. It returns 200 **immediately** and hands the slow work to `waitUntil(processMessage(...))`.
-   Platforms retry on slow responses, so never `await` the model call before responding.
-4. `lib/modal-client.ts` calls the deployed Modal `CommandR.generate_sync` over the Modal JS SDK.
-5. The reply is sent back via `lib/telegram-client.ts` / `lib/whatsapp-client.ts`.
+2. The handler verifies the signature (`lib/verify-signature.ts`: Meta HMAC-SHA256 over the **raw
+   body**, so WhatsApp must read `request.text()` before parsing; Telegram compares the
+   `X-Telegram-Bot-Api-Secret-Token` header) and returns 200 **immediately**,
+   handing slow work to `waitUntil(...)`. Platforms retry on a slow response, so never `await` the
+   model call first — a retried Telegram update means a second reply and a second GPU generation.
+3. **Telegram streams**: `lib/modal-stream-client.ts` opens the `stream_http` SSE endpoint and
+   `lib/telegram-streamer.ts` sends one message then progressively edits it, with a
+   `sendChatAction` typing indicator covering the pre-first-token wait. On any stream failure it
+   falls back to the SDK path, so the streaming path is strictly an upgrade.
+4. **WhatsApp never streams**: the Cloud API has no edit-message endpoint. It calls
+   `lib/modal-client.ts` → `generate_sync` and sends one message.
+
+Why streaming needs a web endpoint at all: the Modal **JS** SDK cannot consume Python generators
+(`Function` exposes only `remote()`/`spawn()`, both single-value; verified through `modal@0.10.1`),
+so `CommandR.generate` is unreachable from TypeScript. HTTP is the way around it.
 
 `maxDuration: 300` is set in both `web/vercel.json` and as an exported `config` in each handler;
 300s is Vercel's cap and is needed because a Modal cold start (container boot + 35B 4-bit model
@@ -44,11 +55,18 @@ load) can take minutes.
 - `@modal.concurrent(max_inputs=5)` lets one container accept 5 concurrent requests; a background
   `_batch_worker` thread collects them into a batch (up to `MAX_BATCH_SIZE`, waiting at most
   `MAX_BATCH_WAIT_SECONDS`) and runs a single `model.generate()`. `BatchStreamer` demultiplexes the
-  batched token stream back into one queue per request.
+  batched token stream back into one queue per request, closing each row's queue as soon as that
+  row hits EOS (`generate()` runs until the longest row finishes, so without this a short reply
+  would stream fully and then sit open until the rest of the batch caught up).
   - Known consequence: `generate()` takes one sampling config per call, so every request in a batch
     is generated with **the first request's temperature** and the batch's max `max_new_tokens`.
-- Two entry points: `generate` (a generator, streams tokens; used by `call_command_r.py` and the
-  local entrypoint) and `generate_sync` (joins the stream into one string; used by the webhooks).
+- Three entry points, all funnelling into the same private `_generate_stream`:
+  - `generate` — `@modal.method()` generator; `call_command_r.py` and the local entrypoint.
+  - `generate_sync` — joins the stream into one string; WhatsApp and Telegram's fallback.
+  - `stream_http` — `@modal.fastapi_endpoint` returning SSE; Telegram's streaming path.
+    `media_type="text/event-stream"` is required (Modal only guarantees unbuffered delivery for
+    it), and `requires_proxy_auth=True` is enforced at ingress *before* the container starts, so
+    an unauthenticated request can't cold-start the A100.
 - The image is deliberately split into two `uv_pip_install` layers so touching the RAG deps doesn't
   invalidate the slow torch layer. Keep that split when adding dependencies.
 - Two Modal volumes: `huggingface-command-r` (model weights cache) and `rag-index-cache` (FAISS
@@ -87,6 +105,7 @@ npm run typecheck                           # tsc --noEmit — the only check th
 npx vercel env pull                         # pull env vars for local dev
 npm run dev                                 # vercel dev
 node spike-modal-sdk.mjs "prompt"           # exercise the Modal SDK path alone
+node spike-modal-stream.mjs "prompt"        # exercise the SSE path; reports frame pacing / 303s
 ```
 
 There is no test suite, linter, or formatter in this repo. `npm run typecheck` is the only
@@ -99,9 +118,12 @@ verification step for `web/`; the Python side has none.
   so the local process never needs them installed.
 - `web/` is ESM (`"type": "module"`, `moduleResolution: NodeNext`): relative imports must carry the
   `.js` extension even for `.ts` sources.
-- `callModal` currently passes only the single latest user message — there is no conversation
-  history or per-user session state anywhere in the system, even though `generate_sync` accepts a
+- Both Modal clients pass only the single latest user message — there is no conversation history or
+  per-user session state anywhere in the system, even though `generate_sync`/`stream_http` accept a
   full `messages` list.
+- Telegram replies are **plain text, never `parse_mode`**. Partially-streamed Markdown (an unclosed
+  `*`, or the mandated `[المصدر: …، صفحة X]` citation, which opens a Markdown link) makes Telegram
+  reject the edit and the message silently stops updating.
 - Telegram handles `/start` locally with a hardcoded `INTRO_MESSAGE`; WhatsApp has no equivalent.
 - All secrets live in Vercel env vars and the Modal `huggingface-secret`; `web/README.md` documents
   each variable and the webhook registration steps for both platforms.

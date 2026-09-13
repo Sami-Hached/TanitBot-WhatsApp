@@ -4,6 +4,7 @@ Cold start: When called the first time, modal will spin up a container and run t
 Warm start: If a container already exists, the inference is run directly.
 An example to call this modal function is in @call_command_r.py
 """
+import json
 import queue
 import threading
 import time
@@ -38,6 +39,8 @@ image = (
         "pypdf",
         "cryptography",
         "langchain-text-splitters",
+        # Serves stream_http below. Kept in this layer, not the torch one above.
+        "fastapi[standard]",
     )
     .add_local_dir("RAG-files", remote_path=RAG_FILES_DIR)
     .add_local_python_source("rag")
@@ -101,6 +104,12 @@ class CommandR:
                 self.queues = [queue.Queue() for _ in range(batch_size)]
                 self.token_caches = [[] for _ in range(batch_size)]
                 self.print_lens = [0 for _ in range(batch_size)]
+                # generate() runs until the LONGEST row in the batch is done, and keeps
+                # emitting pad tokens for rows that already hit EOS. Closing each row's
+                # queue as soon as it ends keeps a streaming client from sitting on a
+                # finished-but-still-open reply until the rest of the batch catches up.
+                self.finished = [False for _ in range(batch_size)]
+                self.eos_token_id = tokenizer.eos_token_id
                 # generate()'s first put() call carries the full prompt, not a
                 # generated token; every call after that carries one new token per row.
                 self.next_call_is_prompt = True
@@ -110,9 +119,13 @@ class CommandR:
                     self.next_call_is_prompt = False
                     return
                 for i, new_ids in enumerate(value.tolist()):
-                    self.token_caches[i].extend(
-                        new_ids if isinstance(new_ids, list) else [new_ids]
-                    )
+                    if self.finished[i]:
+                        continue
+                    new_ids = new_ids if isinstance(new_ids, list) else [new_ids]
+                    if self.eos_token_id in new_ids:
+                        self._finish(i)
+                        continue
+                    self.token_caches[i].extend(new_ids)
                     text = self.tokenizer.decode(
                         self.token_caches[i], skip_special_tokens=self.skip_special_tokens
                     )
@@ -121,9 +134,14 @@ class CommandR:
                         self.queues[i].put(new_text)
                         self.print_lens[i] = len(text)
 
+            def _finish(self, i):
+                if not self.finished[i]:
+                    self.finished[i] = True
+                    self.queues[i].put(None)
+
             def end(self):
-                for q in self.queues:
-                    q.put(None)
+                for i in range(len(self.queues)):
+                    self._finish(i)
 
         self.BatchStreamer = BatchStreamer
 
@@ -215,6 +233,45 @@ class CommandR:
     @modal.method()
     def generate_sync(self, messages: list[dict], max_new_tokens: int = 512, temperature: float = 0.3) -> str:
         return "".join(self._generate_stream(messages, max_new_tokens, temperature))
+
+    @modal.fastapi_endpoint(method="POST", requires_proxy_auth=True, docs=False)
+    def stream_http(self, payload: dict):
+        """Server-sent-events mirror of generate(), for callers that can't consume a
+        Modal generator over the SDK. The JS SDK has no remote_gen equivalent, so the
+        Vercel webhook reaches the same _generate_stream over plain HTTP instead.
+
+        requires_proxy_auth is enforced at Modal's ingress, before this container is
+        invoked — an in-body secret check would still let an unauthenticated request
+        cold-start the A100 and occupy one of the MAX_BATCH_SIZE concurrency slots.
+        """
+        from fastapi.responses import JSONResponse, StreamingResponse
+
+        messages = payload.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return JSONResponse({"error": "messages must be a non-empty list"}, status_code=400)
+        try:
+            # Clamped: an unbounded max_new_tokens would pin the single container.
+            max_new_tokens = min(max(int(payload.get("max_new_tokens", 512)), 1), 1024)
+            temperature = min(max(float(payload.get("temperature", 0.3)), 0.0), 2.0)
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "invalid max_new_tokens or temperature"}, status_code=400)
+
+        def event_stream():
+            try:
+                for delta in self._generate_stream(messages, max_new_tokens, temperature):
+                    # Deltas contain newlines (answers are bulleted), which would break
+                    # raw SSE framing — JSON-encoding each one sidesteps that.
+                    yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
+                yield 'data: {"done": true}\n\n'
+            except Exception as e:
+                # Headers are long gone by now, so the status code can't change: the
+                # failure has to travel in-band, or the client cannot tell a truncated
+                # answer apart from a complete one.
+                yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+        # text/event-stream is required, not cosmetic — Modal only guarantees
+        # unbuffered delivery for this media type.
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.local_entrypoint()

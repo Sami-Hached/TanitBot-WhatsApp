@@ -1,7 +1,9 @@
 import { waitUntil } from "@vercel/functions";
 import { verifyTelegramSecret } from "../lib/verify-signature.js";
 import { callModal } from "../lib/modal-client.js";
+import { streamModal } from "../lib/modal-stream-client.js";
 import { sendTelegramMessage } from "../lib/telegram-client.js";
+import { renderStreamToTelegram } from "../lib/telegram-streamer.js";
 import type { TelegramUpdate } from "../lib/types.js";
 
 export const config = { maxDuration: 300 };
@@ -39,9 +41,26 @@ async function processMessage(update: TelegramUpdate): Promise<void> {
       return;
     }
 
-    const replyText = await callModal(message.text);
-    await sendTelegramMessage(message.chat.id, replyText);
+    await streamReply(message.chat.id, message.text);
   } catch (err) {
     console.error("processMessage failed", err);
+  }
+}
+
+/**
+ * Streams the answer in place, falling back to a single non-streaming reply if the
+ * stream never produced anything — a cold start can outlive Modal's 150s ingress
+ * timeout, and the SDK path has no such limit. The fallback means the streaming path
+ * is strictly an upgrade: the worst case is the behaviour we had before it existed.
+ */
+async function streamReply(chatId: number, text: string): Promise<void> {
+  const controller = new AbortController();
+  try {
+    await renderStreamToTelegram(chatId, streamModal(text, controller.signal), () =>
+      controller.abort()
+    );
+  } catch (err) {
+    console.error("streaming reply failed, falling back to generate_sync", err);
+    await sendTelegramMessage(chatId, await callModal(text));
   }
 }
