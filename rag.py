@@ -252,14 +252,47 @@ def build_or_load_index(pdf_dir: str, index_dir: str, embed_model) -> tuple[obje
     return index, chunks, True
 
 
-def retrieve(query: str, index, chunks: list[dict], embed_model, top_k: int = 4) -> list[dict]:
+def rerank(query: str, candidates: list[dict], reranker, top_k: int = 4) -> list[dict]:
+    """Reranks candidate chunks using a cross-encoder model and returns top_k."""
+    if not candidates or not reranker:
+        return candidates[:top_k]
+
+    pairs = [(query, item["chunk"]["text"]) for item in candidates]
+    scores = reranker.predict(pairs)
+
+    reranked = []
+    for idx, item in enumerate(candidates):
+        score = float(scores[idx]) if hasattr(scores, "__getitem__") else float(scores)
+        reranked.append({
+            "chunk": item["chunk"],
+            "score": score,
+            "dense_score": item.get("score", 0.0),
+        })
+
+    reranked.sort(key=lambda x: x["score"], reverse=True)
+    return reranked[:top_k]
+
+
+def retrieve(
+    query: str,
+    index,
+    chunks: list[dict],
+    embed_model,
+    reranker=None,
+    retrieve_k: int = 20,
+    top_k: int = 4,
+) -> list[dict]:
     query_vector = embed_model.encode([_format_query(query)], normalize_embeddings=True).astype("float32")
-    distances, indices = index.search(query_vector, top_k)
-    return [
+    k_to_fetch = min(max(retrieve_k, top_k), len(chunks))
+    distances, indices = index.search(query_vector, k_to_fetch)
+    candidates = [
         {"chunk": chunks[idx], "score": float(dist)}
         for idx, dist in zip(indices[0], distances[0])
         if 0 <= idx < len(chunks)
     ]
+    if reranker is not None:
+        return rerank(query, candidates, reranker, top_k=top_k)
+    return candidates[:top_k]
 
 
 def _build_context_block(retrieved_items: list[dict]) -> str:

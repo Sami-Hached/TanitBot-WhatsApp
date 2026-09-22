@@ -19,8 +19,10 @@ MAX_BATCH_SIZE = 5
 MAX_BATCH_WAIT_SECONDS = 0.3
 
 EMBED_MODEL_ID = "intfloat/multilingual-e5-small"
+RERANK_MODEL_ID = "BAAI/bge-reranker-v2-m3"
 RAG_FILES_DIR = "/root/RAG-files"
 RAG_INDEX_DIR = "/root/rag_index_cache"
+RAG_RETRIEVE_K = 20
 RAG_TOP_K = 4
 
 image = (
@@ -76,7 +78,7 @@ class GenerationRequest:
 class CommandR:
     @modal.enter()
     def startup(self):
-        from sentence_transformers import SentenceTransformer
+        from sentence_transformers import CrossEncoder, SentenceTransformer
         from transformers import AutoTokenizer, AutoModelForCausalLM
         from transformers.generation.streamers import BaseStreamer
 
@@ -89,8 +91,9 @@ class CommandR:
 
         self.model = AutoModelForCausalLM.from_pretrained(MODEL_ID)
 
-        # Kept on CPU so the embedding model doesn't compete with the 35B model for GPU memory.
+        # Kept on CPU so the embedding and reranker models don't compete with the 35B model for GPU memory.
         self.embed_model = SentenceTransformer(EMBED_MODEL_ID, device="cpu")
+        self.reranker = CrossEncoder(RERANK_MODEL_ID, device="cpu")
         self.rag_index, self.rag_chunks, was_rebuilt = rag.build_or_load_index(
             RAG_FILES_DIR, RAG_INDEX_DIR, self.embed_model
         )
@@ -169,7 +172,13 @@ class CommandR:
             rag.build_rag_messages(
                 req.messages,
                 rag.retrieve(
-                    req.messages[-1]["content"], self.rag_index, self.rag_chunks, self.embed_model, top_k=RAG_TOP_K
+                    req.messages[-1]["content"],
+                    self.rag_index,
+                    self.rag_chunks,
+                    self.embed_model,
+                    reranker=self.reranker,
+                    retrieve_k=RAG_RETRIEVE_K,
+                    top_k=RAG_TOP_K,
                 ),
             )
             for req in batch
