@@ -73,7 +73,19 @@ _SOURCE_NAME_MAP = {
 }
 
 
-RAG_INDEX_VERSION = 3
+RAG_INDEX_VERSION = 4
+
+ARABIC_TEXT_SEPARATORS = [
+    "\n\n",
+    "\n",
+    ". ",
+    "؟ ",
+    "! ",
+    "؛ ",
+    "، ",
+    " ",
+    "",
+]
 
 
 def _format_passage(text: str) -> str:
@@ -154,7 +166,11 @@ def build_index(pdf_dir: str, embed_model):
     if not documents:
         raise RuntimeError(f"No extractable text found in any PDF under {pdf_dir}")
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=120)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1100,
+        chunk_overlap=200,
+        separators=ARABIC_TEXT_SEPARATORS,
+    )
     chunks = [
         {"text": chunk_text, "metadata": doc["metadata"]}
         for doc in documents
