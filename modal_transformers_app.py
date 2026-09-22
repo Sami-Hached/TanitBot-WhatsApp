@@ -166,8 +166,38 @@ class CommandR:
             self._run_batch(batch)
 
     def _run_batch(self, batch):
+        import torch
         import rag
 
+        # 1. Fast batched greedy query rewrite pass with Command R (MSA terms + English keywords)
+        rewrite_prompts = [
+            self.tokenizer.apply_chat_template(
+                rag.build_rewrite_messages(req.messages),
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            for req in batch
+        ]
+        rewrite_inputs = self.tokenizer(
+            rewrite_prompts, return_tensors="pt", padding=True, add_special_tokens=False
+        ).to(self.model.device)
+
+        with torch.inference_mode():
+            rewrite_outputs = self.model.generate(
+                **rewrite_inputs,
+                max_new_tokens=40,
+                do_sample=False,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+            )
+
+        rewritten_queries = []
+        for i, out_ids in enumerate(rewrite_outputs):
+            input_len = rewrite_inputs["input_ids"][i].shape[0]
+            gen_ids = out_ids[input_len:]
+            rewritten_queries.append(self.tokenizer.decode(gen_ids, skip_special_tokens=True).strip())
+
+        # 2. Retrieve context using original user query + LLM-rewritten query with cross-encoder reranking
         rag_messages = [
             rag.build_rag_messages(
                 req.messages,
@@ -177,11 +207,12 @@ class CommandR:
                     self.rag_chunks,
                     self.embed_model,
                     reranker=self.reranker,
+                    rewritten_query=rewritten_queries[i],
                     retrieve_k=RAG_RETRIEVE_K,
                     top_k=RAG_TOP_K,
                 ),
             )
-            for req in batch
+            for i, req in enumerate(batch)
         ]
         prompts = [
             self.tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)

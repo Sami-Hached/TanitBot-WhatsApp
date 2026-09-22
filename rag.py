@@ -252,6 +252,25 @@ def build_or_load_index(pdf_dir: str, index_dir: str, embed_model) -> tuple[obje
     return index, chunks, True
 
 
+QUERY_REWRITE_SYSTEM = """أنت خبير في صياغة استعلامات البحث لأنظمة الأمان الرقمي واسترجاع المعلومات.
+مهمتك: تحويل رسالة المستخدم (التي قد تكون بالدارجة التونسية، العربية، الفرنسية أو لغة مختلطة) إلى كلمات مفتاحية دقيقة للبحث في وثائق الأمان الرقمي:
+1. مصطلحات البحث الأساسية باللغة العربية الفصحى (مثل: اختراق حساب، ابتزاز إلكتروني، حماية فيسبوك، شكاية أمنية).
+2. المصطلحات التقنية المقابلة باللغة الإنجليزية (مثل: account recovery, sextortion, 2FA, phishing).
+اكتب الكلمات المفتاحية فقط مفصولة بمسافات، دون أي مقدمات أو شروحات أو علامات تنصيص."""
+
+
+def build_rewrite_messages(messages: list[dict]) -> list[dict]:
+    """Constructs chat messages to have the LLM rewrite the user query into MSA and English keywords."""
+    if not messages:
+        raise ValueError("messages must not be empty")
+
+    recent_turns = messages[-3:] if len(messages) > 3 else messages
+    return [
+        {"role": "system", "content": QUERY_REWRITE_SYSTEM},
+        *recent_turns,
+    ]
+
+
 def rerank(query: str, candidates: list[dict], reranker, top_k: int = 4) -> list[dict]:
     """Reranks candidate chunks using a cross-encoder model and returns top_k."""
     if not candidates or not reranker:
@@ -279,17 +298,35 @@ def retrieve(
     chunks: list[dict],
     embed_model,
     reranker=None,
+    rewritten_query: str = None,
     retrieve_k: int = 20,
     top_k: int = 4,
 ) -> list[dict]:
-    query_vector = embed_model.encode([_format_query(query)], normalize_embeddings=True).astype("float32")
-    k_to_fetch = min(max(retrieve_k, top_k), len(chunks))
-    distances, indices = index.search(query_vector, k_to_fetch)
-    candidates = [
-        {"chunk": chunks[idx], "score": float(dist)}
-        for idx, dist in zip(indices[0], distances[0])
-        if 0 <= idx < len(chunks)
-    ]
+    queries = [query]
+    if rewritten_query and rewritten_query.strip() and rewritten_query.strip() != query.strip():
+        queries.append(rewritten_query.strip())
+
+    formatted_queries = [_format_query(q) for q in queries]
+    query_vectors = embed_model.encode(formatted_queries, normalize_embeddings=True).astype("float32")
+
+    k_per_query = min(max(retrieve_k, top_k), len(chunks))
+    distances, indices = index.search(query_vectors, k_per_query)
+
+    seen_indices = set()
+    candidates = []
+
+    for q_idx in range(len(queries)):
+        for idx, dist in zip(indices[q_idx], distances[q_idx]):
+            if 0 <= idx < len(chunks) and idx not in seen_indices:
+                seen_indices.add(idx)
+                candidates.append({
+                    "chunk": chunks[idx],
+                    "score": float(dist),
+                    "chunk_idx": int(idx),
+                })
+
+    candidates = candidates[:max(retrieve_k, top_k)]
+
     if reranker is not None:
         return rerank(query, candidates, reranker, top_k=top_k)
     return candidates[:top_k]
