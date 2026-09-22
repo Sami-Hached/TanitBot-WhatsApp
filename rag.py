@@ -73,6 +73,54 @@ _SOURCE_NAME_MAP = {
 }
 
 
+RAG_INDEX_VERSION = 3
+
+
+def _format_passage(text: str) -> str:
+    """Formats document passages for asymmetric embedding models (e.g. Multilingual E5)."""
+    return f"passage: {text}"
+
+
+def _format_query(query: str) -> str:
+    """Formats search queries for asymmetric embedding models (e.g. Multilingual E5)."""
+    return f"query: {query}"
+
+
+def clean_and_normalize_text(text: str) -> str:
+    """Standardizes Arabic presentation forms, corrects font ligature errors,
+    strips non-printable artifacts, and normalizes whitespace."""
+    if not text:
+        return ""
+    import re
+    import unicodedata
+
+    # 1. Unicode NFKC normalization (turns presentation forms \uFB50-\uFEFF into standard Arabic characters)
+    text = unicodedata.normalize("NFKC", text)
+
+    # 2. Normalize Farsi/Urdu character variants to standard Arabic
+    text = text.replace("\u06CC", "\u064A")  # Farsi Yeh -> Arabic Yeh
+    text = text.replace("\u06A9", "\u0643")  # Keheh -> Arabic Kaf
+    text = text.replace("\u06BE", "\u0647")  # Heh Doachashmee -> Arabic Heh
+    text = text.replace("\u06C0", "\u0647")  # Heh with Yeh above -> Arabic Heh
+
+    # 3. Fix known Arabic PDF font ligature and letter-swapping bugs
+    text = re.sub(r"\bيف\b", "في", text)
+    text = re.sub(r"\bعىل\b", "على", text)
+    text = re.sub(r"\bإىل\b", "إلى", text)
+
+    # 4. Strip tatweel/kashida (\u0640) and zero-width/formatting artifacts
+    text = re.sub(r"[\u0640\u200b-\u200f\ufeff\u202a-\u202e]", "", text)
+
+    # 5. Remove stray phonetic / private-use symbols found in corrupted PDF encodings
+    text = re.sub(r"[\u18B0-\u18FF\u1900-\u194F\u0F00-\u0FFF]", "", text)
+
+    # 6. Normalize whitespace while preserving line structure
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
 def get_clean_source_name(filename: str) -> str:
     if filename in _SOURCE_NAME_MAP:
         return _SOURCE_NAME_MAP[filename]
@@ -80,24 +128,18 @@ def get_clean_source_name(filename: str) -> str:
 
 
 def _extract_documents(pdf_dir: str) -> list[dict]:
-    import logging
-
-    from pypdf import PdfReader
-
-    # pypdf logs an INFO line per object it finds while recovering a malformed
-    # cross-reference table, which can flood the logs and add real overhead
-    # over Modal's log-streaming pipeline for large or malformed PDFs.
-    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    import pymupdf
 
     documents = []
     for pdf_path in sorted(glob.glob(os.path.join(pdf_dir, "*.pdf"))):
         filename = os.path.basename(pdf_path)
         try:
-            reader = PdfReader(pdf_path)
-            for page_idx, page in enumerate(reader.pages):
-                text = (page.extract_text() or "").strip()
-                if text:
-                    documents.append({"text": text, "metadata": {"source": filename, "page": page_idx + 1}})
+            doc = pymupdf.open(pdf_path)
+            for page_idx, page in enumerate(doc):
+                raw_text = page.get_text("text") or ""
+                cleaned_text = clean_and_normalize_text(raw_text)
+                if cleaned_text:
+                    documents.append({"text": cleaned_text, "metadata": {"source": filename, "page": page_idx + 1}})
         except Exception as e:
             print(f"[!] Skipping unreadable PDF {filename}: {e}")
     return documents
@@ -120,7 +162,7 @@ def build_index(pdf_dir: str, embed_model):
     ]
 
     embeddings = embed_model.encode(
-        [c["text"] for c in chunks], normalize_embeddings=True, show_progress_bar=False
+        [_format_passage(c["text"]) for c in chunks], normalize_embeddings=True, show_progress_bar=False
     )
     embeddings = np.asarray(embeddings, dtype="float32")
 
@@ -139,13 +181,20 @@ def _is_index_up_to_date(pdf_dir: str, index_dir: str) -> bool:
         return False
 
     pdf_filenames = {os.path.basename(f) for f in glob.glob(os.path.join(pdf_dir, "*.pdf"))}
-    with open(meta_file, "r", encoding="utf-8") as f:
-        chunks = json.load(f)
-    indexed_filenames = {c["metadata"]["source"] for c in chunks if "metadata" in c}
-
-    # Filename-set comparison only (not mtimes): local PDFs are mounted fresh into
-    # each container, so their mtimes reflect mount time, not actual content changes.
-    return pdf_filenames == indexed_filenames
+    try:
+        with open(meta_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            if data.get("version") != RAG_INDEX_VERSION:
+                return False
+            chunks = data.get("chunks", [])
+        else:
+            # Stale format (raw list without version key)
+            return False
+        indexed_filenames = {c["metadata"]["source"] for c in chunks if "metadata" in c}
+        return pdf_filenames == indexed_filenames
+    except Exception:
+        return False
 
 
 def _save_index(index, chunks: list[dict], index_dir: str) -> None:
@@ -154,8 +203,12 @@ def _save_index(index, chunks: list[dict], index_dir: str) -> None:
     os.makedirs(index_dir, exist_ok=True)
     index_file, meta_file = _index_paths(index_dir)
     faiss.write_index(index, index_file)
+    meta_payload = {
+        "version": RAG_INDEX_VERSION,
+        "chunks": chunks,
+    }
     with open(meta_file, "w", encoding="utf-8") as f:
-        json.dump(chunks, f, ensure_ascii=False)
+        json.dump(meta_payload, f, ensure_ascii=False)
 
 
 def _load_index(index_dir: str):
@@ -164,7 +217,8 @@ def _load_index(index_dir: str):
     index_file, meta_file = _index_paths(index_dir)
     index = faiss.read_index(index_file)
     with open(meta_file, "r", encoding="utf-8") as f:
-        chunks = json.load(f)
+        data = json.load(f)
+    chunks = data["chunks"] if isinstance(data, dict) and "chunks" in data else data
     return index, chunks
 
 
@@ -183,7 +237,7 @@ def build_or_load_index(pdf_dir: str, index_dir: str, embed_model) -> tuple[obje
 
 
 def retrieve(query: str, index, chunks: list[dict], embed_model, top_k: int = 4) -> list[dict]:
-    query_vector = embed_model.encode([query], normalize_embeddings=True).astype("float32")
+    query_vector = embed_model.encode([_format_query(query)], normalize_embeddings=True).astype("float32")
     distances, indices = index.search(query_vector, top_k)
     return [
         {"chunk": chunks[idx], "score": float(dist)}

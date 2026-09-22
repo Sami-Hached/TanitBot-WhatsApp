@@ -18,7 +18,7 @@ MODEL_ID = "CohereLabs/c4ai-command-r-v01-4bit"
 MAX_BATCH_SIZE = 5
 MAX_BATCH_WAIT_SECONDS = 0.3
 
-EMBED_MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBED_MODEL_ID = "intfloat/multilingual-e5-small"
 RAG_FILES_DIR = "/root/RAG-files"
 RAG_INDEX_DIR = "/root/rag_index_cache"
 RAG_TOP_K = 4
@@ -36,7 +36,7 @@ image = (
     .uv_pip_install(
         "sentence-transformers",
         "faiss-cpu",
-        "pypdf",
+        "pymupdf",
         "cryptography",
         "langchain-text-splitters",
         # Serves stream_http below. Kept in this layer, not the torch one above.
