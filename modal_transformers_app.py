@@ -46,6 +46,7 @@ image = (
     )
     .add_local_dir("RAG-files", remote_path=RAG_FILES_DIR)
     .add_local_python_source("rag")
+    .add_local_file("System_Instructions.MD", remote_path="/root/System_Instructions.MD")
 )
 
 hf_cache_volume = modal.Volume.from_name("huggingface-command-r", create_if_missing=True)
