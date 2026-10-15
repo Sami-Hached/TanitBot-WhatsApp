@@ -70,7 +70,7 @@ class GenerationRequest:
         "/root/.cache/huggingface": hf_cache_volume,
         RAG_INDEX_DIR: rag_index_volume
     },
-    scaledown_window=10 * 60,
+    scaledown_window=2 * 60,
     timeout=30 * 60,
     max_containers=1,
 )
