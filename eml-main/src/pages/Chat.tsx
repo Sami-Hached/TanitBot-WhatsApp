@@ -235,9 +235,24 @@ export default function Chat() {
     }
   };
 
-  // Helper to format citations: [المصدر: ...، صفحة X]
+  // Helper to format citations: [المصدر: ...، صفحة X] and bold **text**
   const renderFormattedContent = (content: string) => {
     if (!content) return null;
+
+    // Helper to format inline bold text (**text**)
+    const renderInlineBold = (text: string) => {
+      const parts = text.split(/(\*\*[^*]+\*\*)/g);
+      return parts.map((seg, i) => {
+        if (seg.startsWith("**") && seg.endsWith("**")) {
+          return (
+            <strong key={i} className="font-bold text-foreground">
+              {seg.slice(2, -2)}
+            </strong>
+          );
+        }
+        return seg;
+      });
+    };
 
     // Split text by citations
     const citationRegex = /\[(المصدر:[^\]]+)\]/g;
@@ -264,7 +279,7 @@ export default function Chat() {
             const isBullet = line.trim().startsWith("•") || line.trim().startsWith("-");
             return (
               <span key={lineIdx} className={isBullet ? "block my-1 ps-2" : "inline"}>
-                {line}
+                {renderInlineBold(line)}
                 {lineIdx < lines.length - 1 && <br />}
               </span>
             );
