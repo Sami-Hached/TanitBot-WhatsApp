@@ -18,9 +18,11 @@ MODEL_ID = "CohereLabs/c4ai-command-r-v01-4bit"
 MAX_BATCH_SIZE = 5
 MAX_BATCH_WAIT_SECONDS = 0.3
 
-EMBED_MODEL_ID = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBED_MODEL_ID = "intfloat/multilingual-e5-small"
+RERANK_MODEL_ID = "BAAI/bge-reranker-v2-m3"
 RAG_FILES_DIR = "/root/RAG-files"
 RAG_INDEX_DIR = "/root/rag_index_cache"
+RAG_RETRIEVE_K = 20
 RAG_TOP_K = 4
 
 image = (
@@ -36,7 +38,7 @@ image = (
     .uv_pip_install(
         "sentence-transformers",
         "faiss-cpu",
-        "pypdf",
+        "pymupdf",
         "cryptography",
         "langchain-text-splitters",
         # Serves stream_http below. Kept in this layer, not the torch one above.
@@ -68,7 +70,7 @@ class GenerationRequest:
         "/root/.cache/huggingface": hf_cache_volume,
         RAG_INDEX_DIR: rag_index_volume
     },
-    scaledown_window=10 * 60,
+    scaledown_window=2 * 60,
     timeout=30 * 60,
     max_containers=1,
 )
@@ -76,7 +78,7 @@ class GenerationRequest:
 class CommandR:
     @modal.enter()
     def startup(self):
-        from sentence_transformers import SentenceTransformer
+        from sentence_transformers import CrossEncoder, SentenceTransformer
         from transformers import AutoTokenizer, AutoModelForCausalLM
         from transformers.generation.streamers import BaseStreamer
 
@@ -89,8 +91,9 @@ class CommandR:
 
         self.model = AutoModelForCausalLM.from_pretrained(MODEL_ID)
 
-        # Kept on CPU so the embedding model doesn't compete with the 35B model for GPU memory.
+        # Kept on CPU so the embedding and reranker models don't compete with the 35B model for GPU memory.
         self.embed_model = SentenceTransformer(EMBED_MODEL_ID, device="cpu")
+        self.reranker = CrossEncoder(RERANK_MODEL_ID, device="cpu")
         self.rag_index, self.rag_chunks, was_rebuilt = rag.build_or_load_index(
             RAG_FILES_DIR, RAG_INDEX_DIR, self.embed_model
         )
@@ -163,16 +166,53 @@ class CommandR:
             self._run_batch(batch)
 
     def _run_batch(self, batch):
+        import torch
         import rag
 
+        # 1. Fast batched greedy query rewrite pass with Command R (MSA terms + English keywords)
+        rewrite_prompts = [
+            self.tokenizer.apply_chat_template(
+                rag.build_rewrite_messages(req.messages),
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            for req in batch
+        ]
+        rewrite_inputs = self.tokenizer(
+            rewrite_prompts, return_tensors="pt", padding=True, add_special_tokens=False
+        ).to(self.model.device)
+
+        with torch.inference_mode():
+            rewrite_outputs = self.model.generate(
+                **rewrite_inputs,
+                max_new_tokens=40,
+                do_sample=False,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+            )
+
+        rewritten_queries = []
+        for i, out_ids in enumerate(rewrite_outputs):
+            input_len = rewrite_inputs["input_ids"][i].shape[0]
+            gen_ids = out_ids[input_len:]
+            rewritten_queries.append(self.tokenizer.decode(gen_ids, skip_special_tokens=True).strip())
+
+        # 2. Retrieve context using original user query + LLM-rewritten query with cross-encoder reranking
         rag_messages = [
             rag.build_rag_messages(
                 req.messages,
                 rag.retrieve(
-                    req.messages[-1]["content"], self.rag_index, self.rag_chunks, self.embed_model, top_k=RAG_TOP_K
+                    req.messages[-1]["content"],
+                    self.rag_index,
+                    self.rag_chunks,
+                    self.embed_model,
+                    reranker=self.reranker,
+                    rewritten_query=rewritten_queries[i],
+                    retrieve_k=RAG_RETRIEVE_K,
+                    top_k=RAG_TOP_K,
                 ),
             )
-            for req in batch
+            for i, req in enumerate(batch)
         ]
         prompts = [
             self.tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)

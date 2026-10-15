@@ -22,3 +22,12 @@ export function verifyTelegramSecret(header: string | null, expectedSecret: stri
 
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+export function verifyApiKey(providedKey: string | null, expectedKey: string): boolean {
+  if (!providedKey) return false;
+
+  const a = Buffer.from(providedKey);
+  const b = Buffer.from(expectedKey);
+
+  return a.length === b.length && timingSafeEqual(a, b);
+}

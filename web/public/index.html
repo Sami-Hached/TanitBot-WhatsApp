@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تانيت بوت | TanitBot - المساعد التونسي للأمان الرقمي</title>
+  <meta name="description" content="مساعد الذكاء الاصطناعي التونسي للحماية من العنف الرقمي، الابتزاز، والقرصنة بالدارجة التونسية">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Readex+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background-glow glow-1"></div>
+  <div class="background-glow glow-2"></div>
+  <div class="grid-overlay"></div>
+
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-avatar">
+          <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          <div class="status-indicator-dot" id="statusDot" title="خادم الذكاء الاصطناعي متصل"></div>
+        </div>
+        <div class="brand-info">
+          <div class="brand-title-wrap">
+            <h1 class="brand-title">تانيت بوت <span class="brand-en">TanitBot</span></h1>
+            <span class="badge-rag">مستند لوثائق الأمان RAG</span>
+          </div>
+          <p class="brand-subtitle">مساعد السلامة الرقمية ومكافحة الابتزاز بالدارجة التونسية</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btnNewChat" class="btn-icon" title="محادثة جديدة" aria-label="محادثة جديدة">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span class="btn-text">محادثة جديدة</span>
+        </button>
+
+        <button id="btnSettings" class="btn-icon" title="الإعدادات ومفتاح API" aria-label="الإعدادات">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Chat Container -->
+    <main class="chat-viewport" id="chatViewport">
+      <!-- Welcome Hero (shown when chat is empty) -->
+      <section class="welcome-hero" id="welcomeHero">
+        <div class="welcome-card">
+          <div class="welcome-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shield-small">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            فضاء آمن وخاص 100%
+          </div>
+          <h2 class="welcome-title">أهلاً بيك! كيفاش نجم نعاونك اليوم؟</h2>
+          <p class="welcome-desc">
+            أنا <strong>تانيت بوت</strong>، مساعد ذكي وموثق للأمان الرقمي وحمايتك من التحرش والابتزاز الإلكتروني في تونس. جميع الإجابات مدعمة بمراجع رسمية من أدلة السلامة الرقمية ومكتوبة بالدارجة التونسية.
+          </p>
+
+          <div class="quick-prompts-label">أسئلة شائعة يمكنك النقر عليها مباشرة:</div>
+          <div class="quick-prompts-grid">
+            <button class="prompt-chip" data-query="شكون قاعد يبتز فيا بتصاور خاصة ويهدد فيا باش ينشرهم. شنوة نعمل توا خطوة بخطوة؟">
+              <span class="chip-icon">🚨</span>
+              <span class="chip-text">
+                <strong>التعامل مع الابتزاز</strong>
+                <span>شنوة نعمل إذا تعرضت للابتزاز بتصاور خاصة؟</span>
+              </span>
+            </button>
+
+            <button class="prompt-chip" data-query="كيفاش نحمي كونت فيسبوك وانستغرام متاعي من الاختراق ونفعّل التحقق بخطوتين (2FA)؟">
+              <span class="chip-icon">🛡️</span>
+              <span class="chip-text">
+                <strong>حماية الحسابات</strong>
+                <span>كيفاش نحمي كونت فيسبوك ونتفادى الاختراق؟</span>
+              </span>
+            </button>
+
+            <button class="prompt-chip" data-query="شنوة القانون والإجراءات القانونية ضد الجرائم الإلكترونية والابتزاز في تونس؟">
+              <span class="chip-icon">⚖️</span>
+              <span class="chip-text">
+                <strong>الإجراءات القانونية</strong>
+                <span>كيفاش نشكي ووين نتوجه في تونس؟</span>
+              </span>
+            </button>
+
+            <button class="prompt-chip" data-query="وصلني ميساج مشبوه فيه رابط يطلب نمرة تاليفوني أو كلمة السر، كيفاش نثبت؟">
+              <span class="chip-icon">🔍</span>
+              <span class="chip-text">
+                <strong>التصيد الاحتيالي (Phishing)</strong>
+                <span>كيفاش نكشف الروابط المشبوهة والاحتيال؟</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Message History List -->
+      <div class="messages-list" id="messagesList"></div>
+
+      <!-- Live Status / Cold-Start Alert -->
+      <div class="status-banner" id="statusBanner" style="display: none;">
+        <div class="spinner-small"></div>
+        <span id="statusBannerText">جاري الاتصال بالخادم...</span>
+      </div>
+    </main>
+
+    <!-- Chat Footer & Input Form -->
+    <footer class="chat-footer">
+      <form class="input-form" id="chatForm">
+        <div class="input-container">
+          <textarea
+            id="userInput"
+            class="chat-textarea"
+            placeholder="اكتب سؤالك بالدارجة التونسية أو العربية..."
+            rows="1"
+            required
+            maxlength="2000"
+          ></textarea>
+
+          <div class="input-actions">
+            <button type="button" id="btnStop" class="btn-action btn-stop" title="إيقاف التوليد" style="display: none;">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2"/>
+              </svg>
+            </button>
+
+            <button type="submit" id="btnSend" class="btn-action btn-send" title="إرسال" aria-label="إرسال">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="send-icon">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </form>
+      <div class="legal-disclaimer">
+        <span>⚠️ تانيت بوت مساعد إرشادي للتوعية الرقمية. في حالات الخطر القصوى تواصل مباشرة مع الإدارة الفرعية للوقاية الاجتماعية أو الوحدة الوطنية لمكافحة الإجرام.</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settingsModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="modal-icon">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <h3>إعدادات الاتصال والـ API</h3>
+        </div>
+        <button id="btnCloseSettings" class="btn-close" aria-label="إغلاق">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="inputEndpoint">رابط الـ Endpoint (API URL):</label>
+          <input type="url" id="inputEndpoint" class="form-input" placeholder="/api/chat" value="/api/chat">
+          <small class="form-hint">الافتراضي هو <code>/api/chat</code>. يمكنك تغييره إذا كنت تشغل الـ Frontend على نطاق خارجي.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="inputApiKey">مفتاح الحماية (API Key):</label>
+          <div class="password-wrapper">
+            <input type="password" id="inputApiKey" class="form-input" placeholder="أدخل مفتاحك إذا كان مفعلاً على السيرفر">
+            <button type="button" id="btnToggleKey" class="btn-toggle-vis" title="إظهار / إخفاء">👁️</button>
+          </div>
+          <small class="form-hint">يُحفظ في متصفحك محلياً (localStorage) ويُرسل في ترويسة <code>X-API-Key</code>.</small>
+        </div>
+
+        <div class="connection-test-row">
+          <button type="button" id="btnTestConn" class="btn-secondary">
+            <span>اختبار الاتصال</span>
+          </button>
+          <span id="connTestResult" class="conn-test-status"></span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btnSaveSettings" class="btn-primary">حفظ الإعدادات</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

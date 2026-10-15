@@ -36,6 +36,16 @@ pin a specific endpoint, e.g. a preview deployment.
 | `WHATSAPP_ACCESS_TOKEN` | Permanent WhatsApp Business system-user access token — bearer token for sending replies |
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather — used for both `sendMessage` calls and the one-time `setWebhook` registration |
 | `TELEGRAM_WEBHOOK_SECRET` | Arbitrary string you choose; passed to `setWebhook`'s `secret_token` param, checked against the incoming `X-Telegram-Bot-Api-Secret-Token` header |
+| `CHAT_API_KEY` | *(Optional)* Secret key to gate the web chat `/api/chat` endpoint; checked against incoming `X-API-Key` or `Authorization: Bearer <key>` |
+
+### Web Chat Interface & Endpoint (`/api/chat`)
+
+The `web/` deployment also provides an API endpoint and a web interface:
+- **Web UI**: Visit the deployed domain (or `http://localhost:3000` with `vercel dev`). Serves `public/index.html` with real-time SSE streaming, Arabic RTL typography, citation badges, and connection settings.
+- **SSE API Endpoint**: `POST /api/chat`
+  - Accepts `{ "messages": [{"role": "user", "content": "..."}], "stream": true }` or `{ "message": "..." }`.
+  - Emits Server-Sent Events (`data: {"delta": "..."}\n\n`, `data: {"done": true}\n\n`).
+  - Supports CORS and optional API key protection via `X-API-Key: <key>`.
 
 For local development with `vercel dev`, run `vercel env pull` after setting these in
 the dashboard, or export them in your shell before starting the dev server.

@@ -66,10 +66,13 @@ function getStreamUrl(): Promise<string> {
   return streamUrlPromise;
 }
 
+import type { ChatMessage } from "./types.js";
+
 export async function* streamModal(
-  userText: string,
+  input: string | ChatMessage[],
   signal?: AbortSignal
 ): AsyncGenerator<string, void, void> {
+  const messages = typeof input === "string" ? [{ role: "user" as const, content: input }] : input;
   const res = await fetch(await getStreamUrl(), {
     method: "POST",
     signal,
@@ -85,7 +88,7 @@ export async function* streamModal(
       "Modal-Secret": requireEnv("MODAL_PROXY_TOKEN_SECRET"),
     },
     body: JSON.stringify({
-      messages: [{ role: "user", content: userText }],
+      messages,
       max_new_tokens: 512,
       temperature: 0.3,
     }),

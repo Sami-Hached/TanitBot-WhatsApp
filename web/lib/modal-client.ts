@@ -18,13 +18,16 @@ function getCls() {
   return clsPromise;
 }
 
-export async function callModal(userText: string): Promise<string> {
+import type { ChatMessage } from "./types.js";
+
+export async function callModal(input: string | ChatMessage[]): Promise<string> {
   const cls = await getCls();
   const obj = await cls.instance({});
   const generateSync = obj.method("generate_sync");
+  const messages = typeof input === "string" ? [{ role: "user" as const, content: input }] : input;
 
   const result = await generateSync.remote([
-    [{ role: "user", content: userText }],
+    messages,
     512,
     0.3,
   ]);

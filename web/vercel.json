@@ -5,6 +5,9 @@
     },
     "api/telegram-webhook.ts": {
       "maxDuration": 300
+    },
+    "api/chat.ts": {
+      "maxDuration": 300
     }
   }
 }
