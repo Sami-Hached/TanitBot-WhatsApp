@@ -11,6 +11,7 @@ const Navbar = () => {
     { label: t("nav.home"), href: "/" },
     { label: t("nav.about"), href: "/#about" },
     { label: t("nav.tanitbot") || "TanitBot", href: "/chat" },
+    { label: t("nav.threatMonitor") || "Threat Monitor", href: "/chat?tab=monitor" },
     { label: t("nav.projects"), href: "/projects" },
     { label: t("nav.partners"), href: "/#partners" },
     { label: t("nav.testimonials"), href: "/projects#testimonials" },
