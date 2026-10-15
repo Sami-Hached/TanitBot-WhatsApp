@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -15,15 +15,18 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
-  RotateCcw,
-  Sparkles,
-  ExternalLink,
-  PhoneCall,
+  LogOut,
+  LogIn,
+  KeyRound,
+  BadgeCheck,
+  Building2,
   Clock,
   ArrowRight,
   Share2,
   Heart,
   MessageCircle,
+  ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 
 interface ThreatMonitorProps {
@@ -34,50 +37,245 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  // Interactive demo state
-  const [commentsLimited, setCommentsLimited] = useState(false);
-  const [reportedBlocked, setReportedBlocked] = useState(false);
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem("tanitbot_monitor_auth") === "true";
+  });
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+  const [loginEmail, setLoginEmail] = useState("amira.mansour@investigation.tn");
+  const [loginPassword, setLoginPassword] = useState("••••••••••••");
+  const [pressId, setPressId] = useState("SNJT-TN-PRESS-2026-904");
+
+  // Operational State
+  const [commentsLimited, setCommentsLimited] = useState<boolean>(() => {
+    return sessionStorage.getItem("tanitbot_comments_limited") === "true";
+  });
+  const [reportedBlocked, setReportedBlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem("tanitbot_reported_blocked") === "true";
+  });
   const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
   const [showFlaggedComments, setShowFlaggedComments] = useState(true);
-  const [activeStep, setActiveStep] = useState<number>(1);
 
-  const resetDemo = () => {
+  useEffect(() => {
+    sessionStorage.setItem("tanitbot_monitor_auth", isAuthenticated ? "true" : "false");
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    sessionStorage.setItem("tanitbot_comments_limited", commentsLimited ? "true" : "false");
+  }, [commentsLimited]);
+
+  useEffect(() => {
+    sessionStorage.setItem("tanitbot_reported_blocked", reportedBlocked ? "true" : "false");
+  }, [reportedBlocked]);
+
+  const handleLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsLoggingIn(true);
+    setTimeout(() => {
+      setIsLoggingIn(false);
+      setIsAuthenticated(true);
+    }, 600);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
     setCommentsLimited(false);
     setReportedBlocked(false);
     setEvidenceModalOpen(false);
-    setActiveStep(1);
+    sessionStorage.removeItem("tanitbot_monitor_auth");
+    sessionStorage.removeItem("tanitbot_comments_limited");
+    sessionStorage.removeItem("tanitbot_reported_blocked");
   };
 
   const journalistQuestion = isArabic
     ? "نشرت تحقيق صحفي وجاتني هجمات وتعليقات فيها تهديد ومحاولات لكشف عنواني ورقمي، شنوة نعمل توا خطوة بخطوة باش نحمي روحي ونوثق الأدلة قانونياً؟"
     : "I published an investigative article and started receiving hostile threats and attempts to find my home address and phone. What concrete steps should I take now to secure myself and preserve legal evidence?";
 
+  /* ========================================================================= */
+  /* 1. Unauthenticated View: Secure Journalist Login Portal                   */
+  /* ========================================================================= */
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-xl mx-auto space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-border/80 bg-white p-6 sm:p-8 shadow-xs space-y-6"
+        >
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mx-auto shadow-2xs">
+              <ShieldAlert size={26} />
+            </div>
+            <h3 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
+              {isArabic ? "مرصد السلامة الرقمية (TanitWatch)" : "Tanit Threat Monitor"}
+            </h3>
+            <p className="text-xs sm:text-sm text-muted-foreground font-body leading-relaxed max-w-md mx-auto">
+              {isArabic
+                ? "منظومة الحماية والاستشعار المبكر المخصصة للصحفيين والمدافعين عن حقوق الإنسان في تونس لمتابعة وتحليل التهديدات الرقمية."
+                : "Automated early warning and telemetry protection for verified journalists and civil society organizations in Tunisia."}
+            </p>
+          </div>
+
+          {/* Secure Login Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-heading font-semibold text-foreground">
+                {isArabic ? "البريد الإلكتروني المهني" : "Professional Email"}
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="name@press-organization.tn"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border/80 bg-cream/30 text-xs sm:text-sm font-body text-foreground focus:outline-none focus:border-primary focus:bg-white transition-all shadow-2xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-heading font-semibold text-foreground">
+                {isArabic ? "كلمة المرور المشفرة" : "Password"}
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border/80 bg-cream/30 text-xs sm:text-sm font-body text-foreground focus:outline-none focus:border-primary focus:bg-white transition-all shadow-2xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-heading font-semibold text-foreground">
+                  {isArabic ? "معرّف الاعتماد الصحفي (Press Token)" : "Press Credential Token"}
+                </label>
+                <span className="text-2xs text-primary font-body font-semibold">
+                  {isArabic ? "معتمد (SNJT)" : "Verified (SNJT)"}
+                </span>
+              </div>
+              <input
+                type="text"
+                value={pressId}
+                onChange={(e) => setPressId(e.target.value)}
+                placeholder="SNJT-TN-PRESS-2026-904"
+                required
+                className="w-full px-3.5 py-2.5 rounded-xl border border-border/80 bg-cream/30 text-xs sm:text-sm font-body text-foreground focus:outline-none focus:border-primary focus:bg-white transition-all shadow-2xs font-mono"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full py-3 px-4 rounded-xl bg-primary text-primary-foreground font-heading text-xs sm:text-sm font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-2xs disabled:opacity-50 cursor-pointer"
+            >
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw size={15} className="animate-spin" />
+                  <span>{isArabic ? "جاري التحقق وتشفير الجلسة..." : "Establishing Secure Session..."}</span>
+                </>
+              ) : (
+                <>
+                  <LogIn size={15} />
+                  <span>{isArabic ? "تسجيل الدخول ومتابعة الرصد" : "Sign In & Access Telemetry"}</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Quick Connect Pre-fill Helper */}
+          <div className="pt-2 border-t border-border/50 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setLoginEmail("amira.mansour@investigation.tn");
+                setLoginPassword("••••••••••••");
+                setPressId("SNJT-TN-PRESS-2026-904");
+                handleLogin();
+              }}
+              className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-body transition-colors"
+            >
+              <BadgeCheck size={14} />
+              <span>
+                {isArabic
+                  ? "تسجيل دخول مباشر بحساب الصحفية المعتمدة (أميرة منصور)"
+                  : "Quick Sign-In with Verified Journalist Profile (Amira Mansour)"}
+              </span>
+            </button>
+          </div>
+
+          {/* Security & Regulatory Compliance Footer */}
+          <div className="p-3 rounded-2xl bg-cream/50 border border-border/60 text-2xs text-muted-foreground font-body space-y-1 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-foreground font-semibold">
+              <ShieldCheck size={13} className="text-primary" />
+              <span>{isArabic ? "حماية وتشفير عالي المستوى (TLS 1.3)" : "End-to-End Encrypted Session"}</span>
+            </div>
+            <p>
+              {isArabic
+                ? "متوافق مع المعايير التونسية للهيئة الوطنية لحماية المعطيات الشخصية (INPDP). لا يتم تخزين مفاتيح التشفير على خوادم خارجية."
+                : "Compliant with Tunisian data protection standards (INPDP). No credentials or private tokens are stored on third-party servers."}
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  /* ========================================================================= */
+  /* 2. Authenticated View: Active Threat Monitor & Telemetry Dashboard        */
+  /* ========================================================================= */
   return (
     <div className="space-y-6">
-      {/* Demo Presenter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-cream/70 border border-border/70 text-xs sm:text-sm">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary"></span>
-          </span>
-          <span className="font-heading font-semibold text-foreground">
-            {isArabic ? "محاكاة العرض الحي: سيناريو استهداف صحفي" : "Live Demo: Targeted Journalist Incident"}
-          </span>
-          <span className="hidden md:inline-block text-muted-foreground/80 font-body">
-            {isArabic ? "(رصد مبكر وتوجيه محايد)" : "(Early Warning & Guided Action)"}
-          </span>
+      {/* Verified Account Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-white border border-border/80 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-heading font-bold text-sm">
+            {isArabic ? "أم" : "AM"}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-heading font-bold text-sm text-foreground">
+                {isArabic ? "أميرة منصور" : "Amira Mansour"}
+              </span>
+              <span className="inline-flex items-center gap-1 text-2xs font-body font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <BadgeCheck size={11} />
+                {isArabic ? "معتمدة لدى النقابة (SNJT)" : "SNJT Verified Press"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-2xs text-muted-foreground font-mono">
+                ID: SNJT-TN-2026-904
+              </span>
+              <span className="text-2xs text-muted-foreground/60">•</span>
+              <span className="text-2xs text-muted-foreground font-body">
+                {isArabic ? "معرّف البلاغ: #INC-2026-0841" : "Incident: #INC-2026-0841"}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={resetDemo}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-border/80 text-foreground hover:bg-cream/50 transition-colors font-body text-xs shadow-2xs"
-          title={isArabic ? "إعادة ضبط المحاكاة" : "Reset Demo"}
-        >
-          <RotateCcw size={12} />
-          <span>{isArabic ? "إعادة ضبط المحاكاة" : "Reset Demo"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-heading font-semibold bg-cream text-foreground border border-border/70">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            {isArabic ? "الرصد المباشر: متصل" : "Live Telemetry: Active"}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-2xs font-body text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-border/60 transition-colors"
+            title={isArabic ? "تسجيل الخروج" : "Sign Out"}
+          >
+            <LogOut size={12} />
+            <span>{isArabic ? "خروج" : "Sign Out"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Alert Banner */}
@@ -93,7 +291,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-2xs font-heading font-semibold bg-secondary/20 text-secondary mb-1">
-                {isArabic ? "إنذار أمان تلقائي" : "Automated Safety Alert"}
+                {isArabic ? "إنذار أمني استباقي" : "Early Warning Alert"}
               </div>
               <h3 className="font-heading text-lg sm:text-xl font-bold text-foreground">
                 {isArabic
@@ -102,15 +300,15 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
               </h3>
               <p className="text-xs sm:text-sm text-muted-foreground font-body mt-1 max-w-2xl leading-relaxed">
                 {isArabic
-                  ? "تم رصد تسارع مفاجئ في الوصول مصحوباً بنبرة عدائية ومحاولات استدراج لمعلومات شخصية عقب نشر المقال."
-                  : "A sudden reach velocity anomaly with hostile tone and attempts to solicit private details was detected shortly after publication."}
+                  ? "تم رصد تسارع غير نمطي في التفاعل والوصول مصحوباً بنبرة عدائية ومحاولات استدراج لمعلومات شخصية عقب نشر المقال الاستقصائي."
+                  : "Anomalous velocity spike, suspicious reach origin, and hostile comments attempting to crowdsource private contact details were detected."}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-center">
-            <span className="text-2xs font-heading px-3 py-1.5 rounded-xl bg-white/80 border border-border/60 text-muted-foreground shadow-2xs">
-              {isArabic ? "المستوى: تحذير احترازي" : "Status: Precautionary Advisory"}
+            <span className="text-2xs font-heading px-3 py-1.5 rounded-xl bg-white/90 border border-border/60 text-muted-foreground shadow-2xs">
+              {isArabic ? "المستوى: تحذير احترازي عاجل" : "Priority: Immediate Precautionary"}
             </span>
           </div>
         </div>
@@ -129,7 +327,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                   {isArabic ? "أميرة منصور" : "Amira Mansour"}
                 </span>
                 <span className="text-2xs font-body px-2 py-0.5 rounded-full bg-cream text-primary border border-primary/20">
-                  {isArabic ? "صحفية استقصائية" : "Investigative Journalist"}
+                  {isArabic ? "صحفية استقصائية" : "Investigative Reporter"}
                 </span>
               </div>
               <span className="text-2xs text-muted-foreground font-body flex items-center gap-1 mt-0.5">
@@ -141,7 +339,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
 
           <span className="text-2xs font-heading font-semibold text-secondary bg-secondary/10 border border-secondary/20 px-2.5 py-1 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
-            {isArabic ? "تحت الرصد" : "Under Monitoring"}
+            {isArabic ? "تحت الرصد المباشر" : "Monitored Target"}
           </span>
         </div>
 
@@ -156,7 +354,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
             <Heart size={14} /> 1.2k
           </span>
           <span className="flex items-center gap-1.5 text-secondary font-semibold">
-            <MessageCircle size={14} /> 342 {isArabic ? "(تصاعد غير طبيعي)" : "(Anomalous spike)"}
+            <MessageCircle size={14} /> 342 {isArabic ? "(ارتفاع مفاجئ)" : "(Anomalous spike)"}
           </span>
           <span className="flex items-center gap-1.5 hover:text-foreground transition-colors">
             <Share2 size={14} /> 189
@@ -168,10 +366,10 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h4 className="font-heading text-sm font-bold text-foreground uppercase tracking-wide">
-            {isArabic ? "تقرير الرصد والمؤشرات الرقمية (Telemetry Report)" : "Detection & Telemetry Report"}
+            {isArabic ? "تقرير الرصد والمؤشرات الرقمية (Telemetry Report)" : "Telemetry & Indicator Report"}
           </h4>
           <span className="text-2xs text-muted-foreground font-body">
-            {isArabic ? "تحديث فوري من المنصة" : "Real-time feed analytics"}
+            {isArabic ? "تحديث تلقائي: منذ دقيقة" : "Last updated: 1 min ago"}
           </span>
         </div>
 
@@ -191,8 +389,8 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
             </h5>
             <p className="font-body text-xs text-muted-foreground leading-relaxed">
               {isArabic
-                ? "المنشور يسجل رواجاً أعلى بنسبة 115% عن المعدل الطبيعي للمستخدم خلال الـ 45 دقيقة الماضية."
-                : "The post is trending significantly higher (+115%) than your baseline velocity over the last 45 minutes."}
+                ? "المنشور يسجل رواجاً أعلى بنسبة 115% عن المعدل المعتاد لحسابك خلال الـ 45 دقيقة الماضية."
+                : "The post is trending 115% higher than your baseline velocity over the last 45 minutes."}
             </p>
           </div>
 
@@ -203,7 +401,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                 <Users size={16} />
               </span>
               <span className="font-heading text-xs font-bold text-secondary px-2 py-0.5 rounded-full bg-secondary/10 border border-secondary/20">
-                68% {isArabic ? "حسابات جديدة" : "New accounts"}
+                68% {isArabic ? "حسابات مشبوهة" : "Suspicious"}
               </span>
             </div>
             <h5 className="font-heading text-xs font-bold text-foreground">
@@ -223,7 +421,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                 <MessageSquareWarning size={16} />
               </span>
               <span className="font-heading text-xs font-bold text-destructive px-2 py-0.5 rounded-full bg-destructive/10 border border-destructive/20">
-                31% {isArabic ? "محتوى عدائي" : "Flagged"}
+                31% {isArabic ? "محتوى عدائي" : "Harmful"}
               </span>
             </div>
             <h5 className="font-heading text-xs font-bold text-foreground">
@@ -232,7 +430,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
             <p className="font-body text-xs text-muted-foreground leading-relaxed">
               {isArabic
                 ? "رصد تعليقات تحتوي على عبارات ترهيب، خطاب كراهية، وأسئلة تستدرج مقر عمل أو رقم هاتف الصحفية (Doxxing)."
-                : "Some of the language was labeled as harmful: intimidating threats and attempts to crowdsource the journalist's personal address."}
+                : "Some of the incoming language is labeled harmful: threats, intimidation, and attempts to crowdsource personal details."}
             </p>
           </div>
         </div>
@@ -317,7 +515,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
         </AnimatePresence>
       </div>
 
-      {/* Contextual Analysis & Uncertainty Disclosure (Yasmine & Mohamed's Core Discussion) */}
+      {/* Contextual Analysis & Uncertainty Disclosure Box */}
       <div className="rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/5 via-cream/30 to-white p-5 sm:p-6 shadow-xs space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
@@ -341,7 +539,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
             <ul className="list-disc list-inside text-muted-foreground space-y-1 marker:text-primary">
               <li>{isArabic ? "ارتفاع غير نمطي في سرعة التفاعل وتدفق حسابات متزامنة." : "Anomalous velocity spike and synchronized account arrival."}</li>
               <li>{isArabic ? "وجود محاولات متكررة لجمع واستدراج بيانات شخصية حساسة." : "Pattern of inquiries seeking home address and phone contact."}</li>
-              <li>{isArabic ? "تقديم كل هذه التوجيهات دون طلب أي بيانات شخصية منك." : "Initial guidance delivered without requiring personal data."}</li>
+              <li>{isArabic ? "تقديم كل هذه التوجيهات دون طلب أي بيانات شخصية منك." : "Initial guidance delivered without requiring private personal data."}</li>
             </ul>
           </div>
 
@@ -350,7 +548,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
               {isArabic ? "ما لا يمكن الجزم به آلياً (حدود اليقين):" : "What the system CANNOT conclude:"}
             </span>
             <ul className="list-disc list-inside text-muted-foreground space-y-1 marker:text-secondary">
-              <li>{isArabic ? "لا يمكن الجزم بأن الهجوم منسق مركزياً أو موجه من جهة معينة." : "Cannot definitively establish a centralized bot attack without forensic logs."}</li>
+              <li>{isArabic ? "لا يمكن الجزم بأن الهجوم منسق مركزياً أو موجه من جهة معينة." : "Cannot definitively establish a centralized bot attack without forensic server logs."}</li>
               <li>{isArabic ? "تنبيه المنظومة هو إرشاد وقائي وليس تقريراً قضائياً قاطعاً." : "An alert is an advisory warning, not a verified legal judgment."}</li>
               <li>{isArabic ? "الأولوية هي حمايتك الشخصية وحفظ الأدلة بهدوء." : "Goal is empowering your safety while keeping you in full control."}</li>
             </ul>
@@ -379,7 +577,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
           <button
             type="button"
             onClick={() => setCommentsLimited(!commentsLimited)}
-            className={`flex flex-col justify-between p-4 rounded-2xl border text-start transition-all shadow-2xs group ${
+            className={`flex flex-col justify-between p-4 rounded-2xl border text-start transition-all shadow-2xs group cursor-pointer ${
               commentsLimited
                 ? "bg-primary/10 border-primary/40 text-foreground"
                 : "bg-white border-border/80 hover:border-primary/40 hover:bg-cream/20"
@@ -411,7 +609,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
           <button
             type="button"
             onClick={() => setReportedBlocked(!reportedBlocked)}
-            className={`flex flex-col justify-between p-4 rounded-2xl border text-start transition-all shadow-2xs group ${
+            className={`flex flex-col justify-between p-4 rounded-2xl border text-start transition-all shadow-2xs group cursor-pointer ${
               reportedBlocked
                 ? "bg-secondary/15 border-secondary/40 text-foreground"
                 : "bg-white border-border/80 hover:border-secondary/40 hover:bg-cream/20"
@@ -443,7 +641,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
           <button
             type="button"
             onClick={() => setEvidenceModalOpen(true)}
-            className="flex flex-col justify-between p-4 rounded-2xl border border-border/80 bg-white hover:border-foreground/30 hover:bg-cream/20 text-start transition-all shadow-2xs group"
+            className="flex flex-col justify-between p-4 rounded-2xl border border-border/80 bg-white hover:border-foreground/30 hover:bg-cream/20 text-start transition-all shadow-2xs group cursor-pointer"
           >
             <div className="space-y-2">
               <span className="w-8 h-8 rounded-xl bg-cream text-foreground border border-border/60 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -467,7 +665,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
           <button
             type="button"
             onClick={() => onConsultTanitBot(journalistQuestion)}
-            className="flex flex-col justify-between p-4 rounded-2xl border border-primary/50 bg-primary/10 hover:bg-primary/15 text-start transition-all shadow-2xs group"
+            className="flex flex-col justify-between p-4 rounded-2xl border border-primary/50 bg-primary/10 hover:bg-primary/15 text-start transition-all shadow-2xs group cursor-pointer"
           >
             <div className="space-y-2">
               <span className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
@@ -509,7 +707,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                 <button
                   type="button"
                   onClick={() => setEvidenceModalOpen(false)}
-                  className="w-7 h-7 rounded-full bg-cream hover:bg-cream/80 flex items-center justify-center text-muted-foreground hover:text-foreground text-xs"
+                  className="w-7 h-7 rounded-full bg-cream hover:bg-cream/80 flex items-center justify-center text-muted-foreground hover:text-foreground text-xs cursor-pointer"
                 >
                   ✕
                 </button>
@@ -535,7 +733,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                 <button
                   type="button"
                   onClick={() => setEvidenceModalOpen(false)}
-                  className="px-4 py-2 rounded-full border border-border text-xs font-heading hover:bg-cream/50 transition-colors"
+                  className="px-4 py-2 rounded-full border border-border text-xs font-heading hover:bg-cream/50 transition-colors cursor-pointer"
                 >
                   {isArabic ? "إغلاق" : "Close"}
                 </button>
@@ -545,7 +743,7 @@ export default function ThreatMonitor({ onConsultTanitBot }: ThreatMonitorProps)
                     alert(isArabic ? "تم تحميل ملف التوثيق المعتمد بصيغة PDF." : "Evidence dossier downloaded successfully.");
                     setEvidenceModalOpen(false);
                   }}
-                  className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-heading hover:bg-primary/90 transition-colors shadow-2xs"
+                  className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-heading hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer"
                 >
                   {isArabic ? "تحميل التقرير (PDF)" : "Download Dossier (PDF)"}
                 </button>

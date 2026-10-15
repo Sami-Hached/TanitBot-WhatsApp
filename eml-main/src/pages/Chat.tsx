@@ -387,7 +387,7 @@ export default function Chat({ defaultTab = "chat" }: ChatProps) {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
                 </span>
                 <ShieldAlert size={15} />
-                <span>{isArabic ? "رصد الأنشطة المشبوهة (Demo)" : "Threat Monitor (Live Demo)"}</span>
+                <span>{isArabic ? "رصد الأنشطة المشبوهة" : "Threat Monitor"}</span>
               </button>
             </div>
           </div>
