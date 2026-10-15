@@ -64,8 +64,8 @@ class GenerationRequest:
 @app.cls(
     image=image,
     gpu="A100-40GB",
-    cpu=1,
-    memory=1024,
+    cpu=4,
+    memory=4096,
     secrets=[modal.Secret.from_name("huggingface-secret")],
     volumes={
         "/root/.cache/huggingface": hf_cache_volume,
@@ -95,6 +95,11 @@ class CommandR:
         # Kept on CPU so the embedding and reranker models don't compete with the 35B model for GPU memory.
         self.embed_model = SentenceTransformer(EMBED_MODEL_ID, device="cpu")
         self.reranker = CrossEncoder(RERANK_MODEL_ID, device="cpu")
+        try:
+            rag_index_volume.reload()
+        except Exception:
+            pass
+
         self.rag_index, self.rag_chunks, was_rebuilt = rag.build_or_load_index(
             RAG_FILES_DIR, RAG_INDEX_DIR, self.embed_model
         )

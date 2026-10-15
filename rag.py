@@ -236,7 +236,8 @@ def _is_index_up_to_date(pdf_dir: str, index_dir: str) -> bool:
     if not os.path.exists(index_file) or not os.path.exists(meta_file):
         return False
 
-    pdf_filenames = {os.path.basename(f) for f in glob.glob(os.path.join(pdf_dir, "*.pdf"))}
+    import unicodedata
+    pdf_filenames = {unicodedata.normalize("NFKC", os.path.basename(f)) for f in glob.glob(os.path.join(pdf_dir, "*.pdf"))}
     try:
         with open(meta_file, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -247,7 +248,7 @@ def _is_index_up_to_date(pdf_dir: str, index_dir: str) -> bool:
         else:
             # Stale format (raw list without version key)
             return False
-        indexed_filenames = {c["metadata"]["source"] for c in chunks if "metadata" in c}
+        indexed_filenames = {unicodedata.normalize("NFKC", c["metadata"]["source"]) for c in chunks if "metadata" in c}
         return pdf_filenames == indexed_filenames
     except Exception:
         return False
