@@ -17,7 +17,7 @@ import {
   HelpCircle,
   FileCheck,
 } from "lucide-react";
-import avatarImg from "/tanitbot-avatar.png";
+import avatarImg from "@/assets/tanitbot-avatar.png";
 
 type ChatRole = "user" | "assistant";
 
