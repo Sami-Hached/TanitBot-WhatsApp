@@ -126,7 +126,14 @@ export default function Chat() {
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned error ${res.status}`);
+        let errDetail = "";
+        try {
+          const errJson = await res.json();
+          errDetail = errJson.error || "";
+        } catch {
+          // ignore
+        }
+        throw new Error(errDetail || `Server returned error ${res.status}`);
       }
 
       if (!res.body) throw new Error("No response body received");
@@ -135,6 +142,7 @@ export default function Chat() {
       const decoder = new TextDecoder("utf-8");
       let fullText = "";
       let sseBuffer = "";
+      const isSSE = res.headers.get("content-type")?.includes("text/event-stream") ?? false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -142,8 +150,8 @@ export default function Chat() {
 
         const chunk = decoder.decode(value, { stream: true });
 
-        // Check if stream is SSE formatted (data: {"delta": ...}) or raw text stream
-        if (chunk.includes("data:")) {
+        // If content-type is SSE or chunk contains data frames
+        if (isSSE || chunk.includes("data:")) {
           sseBuffer += chunk;
           let sep: number;
           while ((sep = sseBuffer.indexOf("\n\n")) !== -1) {
@@ -164,6 +172,12 @@ export default function Chat() {
                   prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
                 );
               }
+              if (event.error) {
+                fullText = (fullText ? fullText + "\n\n" : "") + `⚠️ ${event.error}`;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content: fullText } : m))
+                );
+              }
               if (event.done) break;
             } catch {
               fullText += rawJson;
@@ -180,19 +194,28 @@ export default function Chat() {
           );
         }
       }
+
+      // If stream ended without any text or error
+      if (!fullText.trim()) {
+        const emptyMsg = isArabic
+          ? "لم يتم استلام أي إجابة من الخادم. يرجى التحقق من إعدادات الاتصال."
+          : "No response was received from the server. Please check the backend connection.";
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: emptyMsg } : m))
+        );
+      }
     } catch (err: any) {
       if (err.name !== "AbortError") {
         console.error("Chat error:", err);
+        const errMsg = err?.message || (isArabic
+          ? "عذراً، تعذر الاتصال بالخادم في الوقت الحالي. يرجى إعادة المحاولة."
+          : "Sorry, unable to connect to the server right now. Please try again.");
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId
               ? {
                   ...m,
-                  content:
-                    m.content ||
-                    (isArabic
-                      ? "عذراً، تعذر الاتصال بالخادم في الوقت الحالي. يرجى إعادة المحاولة."
-                      : "Sorry, unable to connect to the server right now. Please try again."),
+                  content: m.content || errMsg,
                 }
               : m
           )
