@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import ThreatMonitor from "@/components/ThreatMonitor";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Send,
@@ -16,6 +18,7 @@ import {
   Shield,
   HelpCircle,
   FileCheck,
+  Bot,
 } from "lucide-react";
 import avatarImg from "@/assets/tanitbot-avatar.png";
 
@@ -27,9 +30,31 @@ interface Message {
   content: string;
 }
 
-export default function Chat() {
+interface ChatProps {
+  defaultTab?: "chat" | "monitor";
+}
+
+export default function Chat({ defaultTab = "chat" }: ChatProps) {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTabState] = useState<"chat" | "monitor">(
+    tabParam === "monitor" || defaultTab === "monitor" ? "monitor" : "chat"
+  );
+
+  const handleTabChange = (tab: "chat" | "monitor") => {
+    setActiveTabState(tab);
+    setSearchParams({ tab });
+  };
+
+  const handleConsultTanitBot = (presetPrompt: string) => {
+    handleTabChange("chat");
+    setInput(presetPrompt);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 150);
+  };
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -332,13 +357,51 @@ export default function Chat() {
             </div>
           </motion.div>
 
-          {/* Main Chat Interface Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="rounded-3xl border border-border/80 bg-white shadow-xs overflow-hidden flex flex-col h-[640px] md:h-[660px] relative"
-          >
+          {/* Mode Switcher Tabs */}
+          <div className="flex justify-center mb-6">
+            <div className="inline-flex items-center p-1.5 rounded-full bg-cream/80 border border-border/80 shadow-2xs gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleTabChange("chat")}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-heading text-xs sm:text-sm font-semibold transition-all ${
+                  activeTab === "chat"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/60"
+                }`}
+              >
+                <Bot size={15} />
+                <span>{isArabic ? "المساعد الذكي (TanitBot)" : "TanitBot Assistant"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("monitor")}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-heading text-xs sm:text-sm font-semibold transition-all ${
+                  activeTab === "monitor"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/60"
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+                </span>
+                <ShieldAlert size={15} />
+                <span>{isArabic ? "رصد الأنشطة المشبوهة (Demo)" : "Threat Monitor (Live Demo)"}</span>
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "monitor" ? (
+            <ThreatMonitor onConsultTanitBot={handleConsultTanitBot} />
+          ) : (
+            /* Main Chat Interface Card */
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="rounded-3xl border border-border/80 bg-white shadow-xs overflow-hidden flex flex-col h-[640px] md:h-[660px] relative"
+            >
             {/* Card Header Bar */}
             <header className="flex items-center justify-between border-b border-border/60 bg-cream/35 backdrop-blur px-5 py-3.5">
               <div className="flex items-center gap-3">
@@ -539,7 +602,8 @@ export default function Chat() {
               </div>
             </footer>
           </motion.div>
-        </div>
+        )}
+      </div>
       </main>
 
       <Footer />
