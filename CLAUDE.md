@@ -105,9 +105,10 @@ python call_command_r.py                    # call the already-deployed class, s
 npm install
 npm run typecheck                           # tsc --noEmit — the only check that exists
 npx vercel env pull                         # pull env vars for local dev
-npm run dev                                 # vercel dev
+npm run dev                                 # vercel dev (serves public/ UI and /api/ endpoints)
 node spike-modal-sdk.mjs "prompt"           # exercise the Modal SDK path alone
 node spike-modal-stream.mjs "prompt"        # exercise the SSE path; reports frame pacing / 303s
+node spike-chat-endpoint.mjs                # test the /api/chat frontend endpoint
 ```
 
 There is no test suite, linter, or formatter in this repo. `npm run typecheck` is the only

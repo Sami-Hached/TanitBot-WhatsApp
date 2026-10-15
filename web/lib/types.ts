@@ -24,3 +24,8 @@ export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
